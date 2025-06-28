@@ -1,4 +1,4 @@
-# debate_system.py
+
 import os
 import json
 import logging
@@ -74,9 +74,7 @@ class DebateSystem:
     def scientist_agent_node(self, state: DebateState) -> DebateState:
         """Scientist agent node - evidence-based arguments"""
         logger.info(f"=== SCIENTIST AGENT NODE - Round {state['current_round']} ===")
-        if state["current_agent"] != "Scientist":
-            return state
-        
+
         # Prepare context
         previous_args = "\n".join([
             f"[Round {arg['round_num']}] {arg['agent']}: {arg['content']}" 
@@ -118,7 +116,8 @@ Make a compelling, evidence-based argument (2-3 sentences). Be persuasive but fa
             # Update state
             state["arguments"].append(asdict(argument))
 
-            # Display argument
+            # log and Display argument
+            logger.info(f"Scientist argument: {argument_content}")
             print(f"🔬[Round {state['current_round']}] Scientist:")
             print(f"    {argument_content}\n")
             
@@ -128,7 +127,7 @@ Make a compelling, evidence-based argument (2-3 sentences). Be persuasive but fa
             
         except Exception as e:
             logger.error(f"Error in scientist agent: {e}")
-            print(f"Error in scientist agent: {e}")
+            # print(f"Error in scientist agent: {e}")
             raise
         
         return state
@@ -136,9 +135,6 @@ Make a compelling, evidence-based argument (2-3 sentences). Be persuasive but fa
     def philosopher_agent_node(self, state: DebateState) -> DebateState:
         """Philosopher agent node - conceptual and ethical arguments"""
         logger.info(f"=== PHILOSOPHER AGENT NODE - Round {state['current_round']} ===")
-        
-        if state["current_agent"] != "Philosopher":
-            return state
         
         # Prepare context
         previous_args = "\n".join([
@@ -184,7 +180,6 @@ Make a compelling, philosophically grounded argument (2-3 sentences). Be persuas
             
             # Log and display
             logger.info(f"Philosopher argument: {argument_content}")
-            logger.info(f"Philosopher argument: {argument_content}")
             print(f"🤔 [Round {state['current_round']}] Philosopher:")
             print(f"   {argument_content}\n")
             
@@ -198,7 +193,7 @@ Make a compelling, philosophically grounded argument (2-3 sentences). Be persuas
             
         except Exception as e:
             logger.error(f"Error in philosopher agent: {e}")
-            print(f"Error in philosopher agent: {e}")
+            # print(f"Error in philosopher agent: {e}")
             raise
         
         return state
@@ -239,16 +234,12 @@ Keep it concise (3-4 sentences)."""
             
         except Exception as e:
             logger.error(f"Error updating memory: {e}")
-            # Keep previous summary if update fails
         
         return state
     
     def judge_node(self, state: DebateState) -> DebateState:
         """Judge node to evaluate the debate and declare winner"""
         logger.info("=== JUDGE NODE ===")
-        
-        if not state["debate_complete"]:
-            return state
         
         # Prepare full debate transcript
         full_transcript = "\n".join([
@@ -312,29 +303,37 @@ REASON: [your reasoning]"""
             
         except Exception as e:
             logger.error(f"Error in judge node: {e}")
-            print(f"Error in judge node: {e}")
+            # print(f"Error in judge node: {e}")
             state["winner"] = "Error in judgment"
             state["judgment_reason"] = "Could not complete evaluation"
         
         return state
     
-    def should_continue_debate(self, state: DebateState) -> str:
-        """Router function to determine next node"""
-        if not state.get("topic"):
-            return "user_input"
-        elif state["debate_complete"]:
+    def route_after_input(self, state: DebateState) -> str:
+        """Route after user input - always go to scientist first"""
+        return "scientist"
+    
+    def route_after_scientist(self, state: DebateState) -> str:
+        """Route after scientist argument"""
+        return "memory"
+    
+    def route_after_philosopher(self, state: DebateState) -> str:
+        """Route after philosopher argument"""
+        if state["debate_complete"]:
             return "judge"
-        elif state["current_round"] <= 8:
-            # Update memory after each argument
-            if state["arguments"]:
-                state = self.memory_node(state)
-            
-            if state["current_agent"] == "Scientist":
-                return "scientist"
-            else:
-                return "philosopher"
         else:
-            return END
+            return "memory"
+        
+    def route_after_memory(self, state: DebateState) -> str:
+        """Route after memory update"""
+        if state["debate_complete"]:
+            return "judge"
+        elif state["current_agent"] == "Scientist":
+            return "scientist"
+        elif state["current_agent"] == "Philosopher":
+            return "philosopher"
+        else:
+            return "judge"
     
     def build_graph(self):
         """Build the LangGraph workflow"""
@@ -344,34 +343,37 @@ REASON: [your reasoning]"""
         workflow.add_node("user_input", self.user_input_node)
         workflow.add_node("scientist", self.scientist_agent_node)
         workflow.add_node("philosopher", self.philosopher_agent_node)
+        workflow.add_node("memory", self.memory_node)
         workflow.add_node("judge", self.judge_node)
         
         # Add edges
         workflow.set_entry_point("user_input")
+
+        # add conditional edges based on routing logic
         workflow.add_conditional_edges(
             "user_input",
-            self.should_continue_debate,
-            {
-                "user_input": "user_input",
-                "scientist": "scientist",
-                "philosopher": "philosopher",
-                "judge": "judge"
-            }
+            self.route_after_input,
+            {"scientist": "scientist"}
         )
         
         workflow.add_conditional_edges(
             "scientist",
-            self.should_continue_debate,
-            {
-                "scientist": "scientist",
-                "philosopher": "philosopher",
-                "judge": "judge"
-            }
+            self.route_after_scientist,
+            {"memory": "memory"}
         )
         
         workflow.add_conditional_edges(
             "philosopher",
-            self.should_continue_debate,
+            self.route_after_philosopher,
+            {
+                "memory": "memory",
+                "judge": "judge"
+            }
+        )
+
+        workflow.add_conditional_edges(
+            "memory",
+            self.route_after_memory,
             {
                 "scientist": "scientist",
                 "philosopher": "philosopher",
@@ -383,7 +385,6 @@ REASON: [your reasoning]"""
         
         self.graph = workflow.compile()
 
-
     def show_workflow_diagram(self):
         """Display the workflow DAG diagram and save as image"""
         try:
@@ -391,14 +392,14 @@ REASON: [your reasoning]"""
             diagram_data = self.graph.get_graph().draw_mermaid_png()
             
             # Save to file
-            with open('debate_workflow_diagram.png', 'wb') as f:
+            with open('debate_workflow.png', 'wb') as f:
                 f.write(diagram_data)
             
-            print("🔄 Workflow DAG Diagram saved as 'debate_workflow_diagram.png'")
+            print("🔄 Workflow DAG Diagram saved as 'debate_workflow.png'")
             print("=" * 50)
         except Exception as e:
             print(f"Could not generate diagram: {e}")
-            print("📊 Workflow: user_input → scientist ⇄ philosopher → judge → END")
+            print("📊 Workflow: user_input → scientist → memory → philosopher → memory → ... → judge → END")
 
     def run_debate(self) -> DebateState:
         """Execute the debate workflow"""
@@ -445,7 +446,7 @@ REASON: [your reasoning]"""
             "judgment_reason": state["judgment_reason"]
         }
         
-        with open('complete_debate_log.json') as f:
+        with open('debate_log.json', 'w') as f:
             json.dump(log_data, f, indent=2)
         
-        logger.info("Complete debate log saved to complete_debate_log.json")
+        logger.info("Complete debate log saved to debate_log.json")

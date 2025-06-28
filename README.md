@@ -79,12 +79,10 @@ The LangGraph workflow consists of these key nodes:
 
 ### Workflow Flow
 
-![Workflow](debate_workflow_diagram.png)
-<!-- langgraph sucks!, will modify after understanding internals -->
-```
-UserInput → Scientist → Philosopher → Scientist → Philosopher → ... → Judge → END
-              ↓           ↓            ↓           ↓
-           Memory     Memory       Memory     Memory
+![Workflow](debate_workflow.png)
+
+```bash
+start → user_input → scientist → memory → philosopher → memory → scientist → memory → ... → judge → end
 ```
 The workflow alternates between agents for exactly 8 rounds, with memory updates after each argument, ending with automated judgment.
 
@@ -143,4 +141,10 @@ The debate centered on balancing AI safety through regulation versus preserving 
 [Judge] Winner: Scientist
 Reason: Presented more concrete evidence of AI risks and drew compelling parallels to established regulatory frameworks, while effectively countering philosophical concerns with practical safety considerations.
 ============================================================
+
+==================================================
+DEBATE COMPLETE!
+==================================================
+Winner: Scientist
+Check 'debate_log.txt' and 'complete_debate_log.json' for full logs.
 ```
