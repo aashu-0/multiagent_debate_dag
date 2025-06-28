@@ -81,7 +81,7 @@ The LangGraph workflow consists of these key nodes:
 
 ![Workflow](debate_workflow.png)
 
-```bash
+```text
 start → user_input → scientist → memory → philosopher → memory → scientist → memory → ... → judge → end
 ```
 The workflow alternates between agents for exactly 8 rounds, with memory updates after each argument, ending with automated judgment.
@@ -91,17 +91,14 @@ The workflow alternates between agents for exactly 8 rounds, with memory updates
 The system generates several log files:
 
 1. **`debate_log.txt`**: Real-time logging of all system operations
-2. **`complete_debate_log.json`**: Structured JSON log with full debate data
-3. **`debate_workflow_diagram.png`**: Visual representation of the workflow
+2. **`debate_log.json`**: Structured JSON log with full debate data
+3. **`debate_workflow.png`**: Visual representation of the workflow
 
 
 ## Customization
 
 ### Changing Agent Personas
 Modify the prompt templates in `scientist_agent_node()` and `philosopher_agent_node()` to create different agent types (e.g., Economist vs Environmentalist).
-
-### Adjusting Debate Length
-Change the round limit in the conditional logic within agent nodes and the `should_continue_debate()` function.
 
 ### Model Configuration
 Adjust the Gemini model parameters in the `__init__` method:
